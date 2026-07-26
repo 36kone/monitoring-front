@@ -1,5 +1,43 @@
-import { createContext, useContext, useRef, useState, type Dispatch, type ReactNode, type SetStateAction } from 'react'
-interface AppContextType { isLoading: boolean; setIsLoading: (value: boolean) => void; registerForm: (setter: Dispatch<SetStateAction<unknown>>) => void; updateField: (field: string, value: unknown) => void }
-const AppContext = createContext<AppContextType | undefined>(undefined)
-export function AppProvider({ children }: { children: ReactNode }) { const formSetter = useRef<Dispatch<SetStateAction<unknown>> | null>(null); const [isLoading, setIsLoading] = useState(true); const registerForm = (setter: Dispatch<SetStateAction<unknown>>) => { formSetter.current = setter }; const updateField = (field: string, value: unknown) => formSetter.current?.((previous: unknown) => ({ ...(previous as object), [field]: value })); return <AppContext.Provider value={{ isLoading, setIsLoading, registerForm, updateField }}>{children}</AppContext.Provider> }
-export function useApp() { const context = useContext(AppContext); if (!context) throw new Error('useApp must be used within an AppProvider'); return context }
+import {
+  createContext,
+  useContext,
+  useRef,
+  useState,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
+
+interface AppContextType {
+  isLoading: boolean;
+  setIsLoading: (value: boolean) => void;
+  registerForm: (setter: Dispatch<SetStateAction<unknown>>) => void;
+  updateField: (field: string, value: unknown) => void;
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+export function AppProvider({ children }: { children: ReactNode }) {
+  const formSetter = useRef<Dispatch<SetStateAction<unknown>> | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const registerForm = (setter: Dispatch<SetStateAction<unknown>>) => {
+    formSetter.current = setter;
+  };
+  const updateField = (field: string, value: unknown) =>
+    formSetter.current?.((previous: unknown) => ({
+      ...(previous as object),
+      [field]: value,
+    }));
+  return (
+    <AppContext.Provider
+      value={{ isLoading, setIsLoading, registerForm, updateField }}
+    >
+      {children}
+    </AppContext.Provider>
+  );
+}
+export function useApp() {
+  const context = useContext(AppContext);
+  if (!context) throw new Error("useApp must be used within an AppProvider");
+  return context;
+}

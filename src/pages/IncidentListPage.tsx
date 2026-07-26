@@ -1,8 +1,282 @@
-import { useEffect, useState } from 'react'
-import { monitorService } from '@/services/monitor/monitor.service'
-import type { Incident } from '@/types/incident/incident.types'
-import type { Monitor } from '@/types/monitor/monitor.types'
-import { Modal } from '@/components/ui/Modal'
-import type { IncidentStatus } from '@/types/incident/incident.types'
+import { useEffect, useState } from "react";
+import { monitorService } from "@/services/monitor/monitor.service";
+import type { Incident } from "@/types/incident/incident.types";
+import type { Monitor } from "@/types/monitor/monitor.types";
+import { Modal } from "@/components/ui/Modal";
+import type { IncidentStatus } from "@/types/incident/incident.types";
 
-export function IncidentListPage() { const [monitors, setMonitors] = useState<Monitor[]>([]); const [monitorId, setMonitorId] = useState(''); const [incidents, setIncidents] = useState<Incident[]>([]); const [page, setPage] = useState(1); const [pages, setPages] = useState(1); const [loading, setLoading] = useState(true); const [error, setError] = useState(''); const [dialogOpen, setDialogOpen] = useState(false); const [submitting, setSubmitting] = useState(false); const [form, setForm] = useState<{ status: IncidentStatus; startedAt: string; resolvedAt: string; durationSeconds: number }>({ status: 'open', startedAt: '', resolvedAt: '', durationSeconds: 0 }); useEffect(() => { monitorService.list({ size: 100 }).then((response) => { setMonitors(response.list); if (!monitorId && response.list[0]) setMonitorId(response.list[0].id) }).catch((reason) => setError(reason instanceof Error ? reason.message : 'Não foi possível carregar os monitores.')) }, [monitorId]); useEffect(() => { if (!monitorId) { setLoading(false); return } setLoading(true); monitorService.incidents(monitorId, { size: 10, page }).then((response) => { setIncidents(response.list); setPages(response.pagination.pages || 1) }).catch((reason) => setError(reason instanceof Error ? reason.message : 'Não foi possível carregar os incidentes.')).finally(() => setLoading(false)) }, [monitorId, page]); async function createIncident(event: React.FormEvent) { event.preventDefault(); if (!monitorId) return; setSubmitting(true); setError(''); try { await monitorService.createIncident(monitorId, { status: form.status, startedAt: form.startedAt ? new Date(form.startedAt).toISOString() : undefined, resolvedAt: form.status === 'resolved' && form.resolvedAt ? new Date(form.resolvedAt).toISOString() : undefined, durationSeconds: form.durationSeconds || undefined }); setDialogOpen(false); setPage(1); const response = await monitorService.incidents(monitorId, { size: 10, page: 1 }); setIncidents(response.list); setPages(response.pagination.pages || 1) } catch (reason) { setError(reason instanceof Error ? reason.message : 'Não foi possível criar o incidente.') } finally { setSubmitting(false) } } return <div className="page-wrap"><section className="hero"><div><p className="eyebrow">Monitor / Incidents</p><h1>Incidents</h1><p className="hero-copy">Falhas e recuperações registradas por monitor.</p></div><div className="hero-actions"><select className="resource-select" value={monitorId} onChange={(event) => { setMonitorId(event.target.value); setPage(1) }}>{monitors.map((monitor) => <option key={monitor.id} value={monitor.id}>{monitor.name}</option>)}</select><button className="primary-btn" onClick={() => setDialogOpen(true)} disabled={!monitorId}>＋ Add incident</button></div></section><section className="panel resource-panel">{error && <div className="form-error">{error}</div>}{loading ? <div className="empty-state">Carregando incidentes...</div> : incidents.length === 0 ? <div className="empty-state">Nenhum incidente registrado para este monitor.</div> : <div className="resource-table"><div className="resource-head incident-grid"><span>Incident</span><span>Status</span><span>Started at</span><span>Duration</span></div>{incidents.map((incident) => <div className="resource-row incident-grid static-row" key={incident.id}><span><strong>{incident.status === 'open' ? 'Open incident' : 'Resolved incident'}</strong><small>{incident.id}</small></span><span className={`status ${incident.status === 'open' ? 'down' : 'up'}`}><i />{incident.status}</span><span className="muted">{new Date(incident.startedAt).toLocaleString('pt-BR')}</span><span>{incident.durationSeconds ? `${incident.durationSeconds}s` : '—'}</span></div>)}</div>}<div className="pagination"><span>Page {page} of {pages}</span><div><button disabled={page <= 1} onClick={() => setPage(page - 1)}>←</button><button disabled={page >= pages} onClick={() => setPage(page + 1)}>→</button></div></div></section>{dialogOpen && <Modal eyebrow="Monitor event" title="Add an incident" onClose={() => setDialogOpen(false)}><form onSubmit={createIncident}><label>Monitor<select value={monitorId} onChange={(e) => setMonitorId(e.target.value)}>{monitors.map((monitor) => <option key={monitor.id} value={monitor.id}>{monitor.name}</option>)}</select></label><div className="form-row"><label>Status<select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value as IncidentStatus })}><option value="open">Open</option><option value="resolved">Resolved</option></select></label><label>Started at<input required type="datetime-local" value={form.startedAt} onChange={(e) => setForm({ ...form, startedAt: e.target.value })} /></label><label>Duration (sec)<input min="0" type="number" value={form.durationSeconds} onChange={(e) => setForm({ ...form, durationSeconds: Number(e.target.value) })} /></label></div>{form.status === 'resolved' && <label>Resolved at<input required type="datetime-local" value={form.resolvedAt} onChange={(e) => setForm({ ...form, resolvedAt: e.target.value })} /></label>}<div className="modal-actions"><button type="button" className="secondary-btn" onClick={() => setDialogOpen(false)}>Cancel</button><button className="primary-btn" disabled={submitting}>{submitting ? 'Creating...' : 'Create incident'}</button></div></form></Modal>}</div> }
+export function IncidentListPage() {
+  const [monitors, setMonitors] = useState<Monitor[]>([]);
+  const [monitorId, setMonitorId] = useState("");
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(1);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [form, setForm] = useState<{
+    status: IncidentStatus;
+    startedAt: string;
+    resolvedAt: string;
+    durationSeconds: number;
+  }>({ status: "open", startedAt: "", resolvedAt: "", durationSeconds: 0 });
+  useEffect(() => {
+    monitorService
+      .list({ size: 100 })
+      .then((response) => {
+        setMonitors(response.list);
+        if (!monitorId && response.list[0]) setMonitorId(response.list[0].id);
+      })
+      .catch((reason) =>
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Não foi possível carregar os monitores.",
+        ),
+      );
+  }, [monitorId]);
+  useEffect(() => {
+    if (!monitorId) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    monitorService
+      .incidents(monitorId, { size: 10, page })
+      .then((response) => {
+        setIncidents(response.list);
+        setPages(response.pagination.pages || 1);
+      })
+      .catch((reason) =>
+        setError(
+          reason instanceof Error
+            ? reason.message
+            : "Não foi possível carregar os incidentes.",
+        ),
+      )
+      .finally(() => setLoading(false));
+  }, [monitorId, page]);
+  async function createIncident(event: React.FormEvent) {
+    event.preventDefault();
+    if (!monitorId) return;
+    setSubmitting(true);
+    setError("");
+    try {
+      await monitorService.createIncident(monitorId, {
+        status: form.status,
+        startedAt: form.startedAt
+          ? new Date(form.startedAt).toISOString()
+          : undefined,
+        resolvedAt:
+          form.status === "resolved" && form.resolvedAt
+            ? new Date(form.resolvedAt).toISOString()
+            : undefined,
+        durationSeconds: form.durationSeconds || undefined,
+      });
+      setDialogOpen(false);
+      setPage(1);
+      const response = await monitorService.incidents(monitorId, {
+        size: 10,
+        page: 1,
+      });
+      setIncidents(response.list);
+      setPages(response.pagination.pages || 1);
+    } catch (reason) {
+      setError(
+        reason instanceof Error
+          ? reason.message
+          : "Não foi possível criar o incidente.",
+      );
+    } finally {
+      setSubmitting(false);
+    }
+  }
+  return (
+    <div className="page-wrap">
+      <section className="hero">
+        <div>
+          <p className="eyebrow">Monitor / Incidents</p>
+          <h1>Incidents</h1>
+          <p className="hero-copy">
+            Falhas e recuperações registradas por monitor.
+          </p>
+        </div>
+        <div className="hero-actions">
+          <select
+            className="resource-select"
+            value={monitorId}
+            onChange={(event) => {
+              setMonitorId(event.target.value);
+              setPage(1);
+            }}
+          >
+            {monitors.map((monitor) => (
+              <option key={monitor.id} value={monitor.id}>
+                {monitor.name}
+              </option>
+            ))}
+          </select>
+          <button
+            className="primary-btn"
+            onClick={() => setDialogOpen(true)}
+            disabled={!monitorId}
+          >
+            ＋ Add incident
+          </button>
+        </div>
+      </section>
+      <section className="panel resource-panel">
+        {error && <div className="form-error">{error}</div>}
+        {loading ? (
+          <div className="empty-state">Carregando incidentes...</div>
+        ) : incidents.length === 0 ? (
+          <div className="empty-state">
+            Nenhum incidente registrado para este monitor.
+          </div>
+        ) : (
+          <div className="resource-table">
+            <div className="resource-head incident-grid">
+              <span>Incident</span>
+              <span>Status</span>
+              <span>Started at</span>
+              <span>Duration</span>
+            </div>
+            {incidents.map((incident) => (
+              <div
+                className="resource-row incident-grid static-row"
+                key={incident.id}
+              >
+                <span>
+                  <strong>
+                    {incident.status === "open"
+                      ? "Open incident"
+                      : "Resolved incident"}
+                  </strong>
+                  <small>{incident.id}</small>
+                </span>
+                <span
+                  className={`status ${incident.status === "open" ? "down" : "up"}`}
+                >
+                  <i />
+                  {incident.status}
+                </span>
+                <span className="muted">
+                  {new Date(incident.startedAt).toLocaleString("pt-BR")}
+                </span>
+                <span>
+                  {incident.durationSeconds
+                    ? `${incident.durationSeconds}s`
+                    : "—"}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="pagination">
+          <span>
+            Page {page} of {pages}
+          </span>
+          <div>
+            <button disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              ←
+            </button>
+            <button disabled={page >= pages} onClick={() => setPage(page + 1)}>
+              →
+            </button>
+          </div>
+        </div>
+      </section>
+      {dialogOpen && (
+        <Modal
+          eyebrow="Monitor event"
+          title="Add an incident"
+          onClose={() => setDialogOpen(false)}
+        >
+          <form onSubmit={createIncident}>
+            <label>
+              Monitor
+              <select
+                value={monitorId}
+                onChange={(e) => setMonitorId(e.target.value)}
+              >
+                {monitors.map((monitor) => (
+                  <option key={monitor.id} value={monitor.id}>
+                    {monitor.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="form-row">
+              <label>
+                Status
+                <select
+                  value={form.status}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      status: e.target.value as IncidentStatus,
+                    })
+                  }
+                >
+                  <option value="open">Open</option>
+                  <option value="resolved">Resolved</option>
+                </select>
+              </label>
+              <label>
+                Started at
+                <input
+                  required
+                  type="datetime-local"
+                  value={form.startedAt}
+                  onChange={(e) =>
+                    setForm({ ...form, startedAt: e.target.value })
+                  }
+                />
+              </label>
+              <label>
+                Duration (sec)
+                <input
+                  min="0"
+                  type="number"
+                  value={form.durationSeconds}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      durationSeconds: Number(e.target.value),
+                    })
+                  }
+                />
+              </label>
+            </div>
+            {form.status === "resolved" && (
+              <label>
+                Resolved at
+                <input
+                  required
+                  type="datetime-local"
+                  value={form.resolvedAt}
+                  onChange={(e) =>
+                    setForm({ ...form, resolvedAt: e.target.value })
+                  }
+                />
+              </label>
+            )}
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="secondary-btn"
+                onClick={() => setDialogOpen(false)}
+              >
+                Cancel
+              </button>
+              <button className="primary-btn" disabled={submitting}>
+                {submitting ? "Creating..." : "Create incident"}
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
+    </div>
+  );
+}
