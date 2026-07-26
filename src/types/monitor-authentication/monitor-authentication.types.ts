@@ -1,0 +1,5 @@
+export type MonitorAuthenticationType = "none" | "api_key" | "bearer_token" | "basic" | "dynamic_login"
+export interface MonitorAuthenticationCredentials { apiKey?: string; token?: string; username?: string; password?: string; headerName?: string; loginBody?: Record<string, unknown>; loginHeaders?: Record<string, string> }
+export type LoginBodyType = "json" | "form_urlencoded" | "multipart"
+export interface MonitorAuthenticationPayload { authType: MonitorAuthenticationType; credentials: MonitorAuthenticationCredentials; loginUrl?: string; loginMethod?: string; loginBodyType?: LoginBodyType; tokenJsonPath?: string; expiresInJsonPath?: string; expiresAtJsonPath?: string; authorizationHeader?: string; authorizationScheme?: string; refreshSkewSeconds?: number }
+export interface MonitorAuthenticationResponse { id: string; monitorId: string; authType: MonitorAuthenticationType; configured: boolean; loginUrl: string | null; loginMethod: string | null; loginBodyType: LoginBodyType; tokenJsonPath: string | null; expiresInJsonPath: string | null; expiresAtJsonPath: string | null; authorizationHeader: string; authorizationScheme: string; refreshSkewSeconds: number }

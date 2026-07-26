@@ -8,13 +8,17 @@ import {
 } from "react";
 import authService from "@/services/auth/auth.service";
 import type { AuthResponse, LoginCredentials } from "@/types/auth/auth.types";
-import type { User } from "@/types/user/user.types";
+import type {
+  UpdateCurrentUserPayload,
+  User,
+} from "@/types/user/user.types";
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   login: (credentials: LoginCredentials) => Promise<AuthResponse>;
   logout: () => void;
+  updateProfile: (payload: UpdateCurrentUserPayload) => Promise<User>;
   isAdmin: boolean;
 }
 
@@ -45,15 +49,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authService.logout();
     setUser(null);
   }, []);
+  const updateProfile = useCallback(async (payload: UpdateCurrentUserPayload) => {
+    const updatedUser = await authService.updateCurrentUser(payload);
+    setUser(updatedUser);
+    return updatedUser;
+  }, []);
   const value = useMemo(
     () => ({
       user,
       isLoading,
       login,
       logout,
+      updateProfile,
       isAdmin: Boolean(user?.isAdmin || user?.isSuperUser),
     }),
-    [user, isLoading, login, logout],
+    [user, isLoading, login, logout, updateProfile],
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

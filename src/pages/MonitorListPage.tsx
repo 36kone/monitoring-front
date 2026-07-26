@@ -1,8 +1,14 @@
 import { useEffect, useState } from "react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { monitorService } from "@/services/monitor/monitor.service";
 import type { Monitor, MonitorStatus } from "@/types/monitor/monitor.types";
 import { Modal } from "@/components/ui/Modal";
+import { MonitorAuthenticationForm } from "@/components/monitor/MonitorAuthenticationForm";
+import { monitorAuthenticationService } from "@/services/monitor-authentication/monitor-authentication.service";
+import type { MonitorAuthenticationPayload } from "@/types/monitor-authentication/monitor-authentication.types";
+import { MonitorRequestFields } from "@/components/monitor/MonitorRequestFields";
+import { useConfirmDialog } from "@/hooks/useConfirmDialog";
 
 export function MonitorListPage() {
   const [monitors, setMonitors] = useState<Monitor[]>([]);
@@ -12,6 +18,7 @@ export function MonitorListPage() {
   const [status, setStatus] = useState<MonitorStatus | "">("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
@@ -21,6 +28,17 @@ export function MonitorListPage() {
     timeoutMs: 5000,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [authentication, setAuthentication] = useState<MonitorAuthenticationPayload>({ authType: "none", credentials: {} });
+  const [requestBody, setRequestBody] = useState<Record<string, unknown> | undefined>();
+  const [requestHeaders, setRequestHeaders] = useState<Record<string, string> | undefined>();
+  const [editMonitor, setEditMonitor] = useState<Monitor | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", url: "", method: "GET", intervalSeconds: 60, timeoutMs: 5000 });
+  const [editBody, setEditBody] = useState<Record<string, unknown> | undefined>();
+  const [editHeaders, setEditHeaders] = useState<Record<string, string> | undefined>();
+  const [editAuthentication, setEditAuthentication] = useState<MonitorAuthenticationPayload>({ authType: "none", credentials: {} });
+  const [editAuthenticationDirty, setEditAuthenticationDirty] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const { confirm, dialog: confirmDialog } = useConfirmDialog();
 
   useEffect(() => {
     setLoading(true);
@@ -50,12 +68,15 @@ export function MonitorListPage() {
     setSubmitting(true);
     setError("");
     try {
-      await monitorService.create({
+      const monitor = await monitorService.create({
         ...form,
+        body: requestBody,
+        headers: requestHeaders,
         intervalSeconds: Number(form.intervalSeconds),
         timeoutMs: Number(form.timeoutMs),
         enabled: true,
       });
+      if (authentication.authType !== "none") await monitorAuthenticationService.save(monitor.id, authentication);
       setDialogOpen(false);
       setForm({
         name: "",
@@ -64,6 +85,9 @@ export function MonitorListPage() {
         intervalSeconds: 60,
         timeoutMs: 5000,
       });
+      setAuthentication({ authType: "none", credentials: {} });
+      setRequestBody(undefined);
+      setRequestHeaders(undefined);
       setPage(1);
       const response = await monitorService.list({
         keyword: keyword || undefined,
@@ -84,8 +108,41 @@ export function MonitorListPage() {
     }
   }
 
+  async function openEdit(monitor: Monitor) {
+    setEditMonitor(monitor);
+    setEditForm({ name: monitor.name, url: monitor.url, method: monitor.method, intervalSeconds: monitor.intervalSeconds, timeoutMs: monitor.timeoutMs });
+    setEditBody(monitor.body || undefined);
+    setEditHeaders(monitor.headers || undefined);
+    setEditAuthenticationDirty(false);
+    const authentication = await monitorAuthenticationService.get(monitor.id).catch(() => null);
+    setEditAuthentication(authentication ? { authType: authentication.authType, credentials: {}, loginUrl: authentication.loginUrl || undefined, loginMethod: authentication.loginMethod || undefined, loginBodyType: authentication.loginBodyType, tokenJsonPath: authentication.tokenJsonPath || undefined, expiresInJsonPath: authentication.expiresInJsonPath || undefined, expiresAtJsonPath: authentication.expiresAtJsonPath || undefined, authorizationHeader: authentication.authorizationHeader, authorizationScheme: authentication.authorizationScheme, refreshSkewSeconds: authentication.refreshSkewSeconds } : { authType: "none", credentials: {} });
+    setError("");
+  }
+
+  async function updateMonitor(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editMonitor) return;
+    setEditing(true); setError("");
+    try {
+      await monitorService.update(editMonitor.id, { ...editForm, body: editBody, headers: editHeaders });
+      if (editAuthenticationDirty) await monitorAuthenticationService.save(editMonitor.id, editAuthentication);
+      setEditMonitor(null);
+      const response = await monitorService.list({ keyword: keyword || undefined, status: status || undefined, size: 10, page });
+      setMonitors(response.list); setPages(response.pagination.pages || 1);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Could not update the monitor.") }
+    finally { setEditing(false) }
+  }
+
+  async function removeMonitor(monitor: Monitor) {
+    const confirmed = await confirm({ title: "Delete monitor?", description: `This will permanently remove “${monitor.name}” and its check history.`, confirmLabel: "Delete monitor" });
+    if (!confirmed) return;
+    try { await monitorService.remove(monitor.id); setNotice("Monitor deleted."); setTimeout(() => setNotice(""), 3500); const response = await monitorService.list({ keyword: keyword || undefined, status: status || undefined, size: 10, page }); setMonitors(response.list); setPages(response.pagination.pages || 1) }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "Could not delete the monitor.") }
+  }
+
   return (
     <div className="page-wrap">
+      {notice && <div className="toast">{notice}</div>}
       <section className="hero">
         <div>
           <p className="eyebrow">Monitor / Services</p>
@@ -135,7 +192,7 @@ export function MonitorListPage() {
               <span>Status</span>
               <span>Interval</span>
               <span>Last check</span>
-              <span />
+              <span>Actions</span>
             </div>
             {monitors.map((monitor) => (
               <Link
@@ -158,7 +215,7 @@ export function MonitorListPage() {
                 <span className="muted">
                   {formatRelative(monitor.lastCheckedAt)}
                 </span>
-                <span className="row-arrow">→</span>
+                <span className="row-actions"><button className="row-action edit" title="Edit monitor" onClick={(event) => { event.preventDefault(); event.stopPropagation(); openEdit(monitor) }}><Pencil size={14} /></button><button className="row-action" title="Delete monitor" onClick={(event) => { event.preventDefault(); event.stopPropagation(); void removeMonitor(monitor) }}><Trash2 size={14} /></button></span>
               </Link>
             ))}
           </div>
@@ -231,6 +288,8 @@ export function MonitorListPage() {
                 />
               </label>
             </div>
+            <MonitorAuthenticationForm value={authentication} onChange={setAuthentication} />
+            <MonitorRequestFields method={form.method} body={requestBody} headers={requestHeaders} onBodyChange={setRequestBody} onHeadersChange={setRequestHeaders} />
             <div className="modal-actions">
               <button
                 type="button"
@@ -246,6 +305,8 @@ export function MonitorListPage() {
           </form>
         </Modal>
       )}
+      {editMonitor && <Modal eyebrow="Monitor settings" title="Edit monitor" onClose={() => setEditMonitor(null)}><form onSubmit={updateMonitor}><label>Name<input required value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} /></label><label>Endpoint URL<input required type="url" value={editForm.url} onChange={(event) => setEditForm({ ...editForm, url: event.target.value })} /></label><div className="form-row"><label>Method<select value={editForm.method} onChange={(event) => setEditForm({ ...editForm, method: event.target.value })}><option>GET</option><option>POST</option><option>PUT</option><option>PATCH</option><option>DELETE</option></select></label><label>Interval (sec)<input min="1" type="number" value={editForm.intervalSeconds} onChange={(event) => setEditForm({ ...editForm, intervalSeconds: Number(event.target.value) })} /></label><label>Timeout (ms)<input min="1" type="number" value={editForm.timeoutMs} onChange={(event) => setEditForm({ ...editForm, timeoutMs: Number(event.target.value) })} /></label></div><MonitorRequestFields method={editForm.method} body={editBody} headers={editHeaders} onBodyChange={setEditBody} onHeadersChange={setEditHeaders} /><MonitorAuthenticationForm value={editAuthentication} onChange={(next) => { setEditAuthentication(next); setEditAuthenticationDirty(true) }} /><p className="secret-note">Existing credentials are never displayed. Re-enter a secret only when changing authentication.</p><div className="modal-actions"><button type="button" className="secondary-btn" onClick={() => setEditMonitor(null)}>Cancel</button><button className="primary-btn" disabled={editing}>{editing ? "Saving..." : "Save changes"}</button></div></form></Modal>}
+      {confirmDialog}
     </div>
   );
 }
