@@ -7,6 +7,8 @@ export interface Monitor {
   method: string;
   intervalSeconds: number;
   timeoutMs: number;
+  body: Record<string, unknown> | null;
+  headers: Record<string, string> | null;
   enabled: boolean;
   status: MonitorStatus;
   consecutiveFailures: number;
@@ -23,6 +25,8 @@ export interface CreateMonitorPayload {
   method: string;
   intervalSeconds: number;
   timeoutMs: number;
+  body?: Record<string, unknown>;
+  headers?: Record<string, string>;
   enabled: boolean;
 }
 
@@ -34,6 +38,7 @@ export interface MonitorCheck {
   success: boolean;
   latencyMs: number | null;
   error: string | null;
+  responseBody: unknown;
   timedOut: boolean;
   checkedAt: string;
   createdAt: string;

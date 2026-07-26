@@ -33,3 +33,9 @@ export interface UpdateUserPayload {
   mfaEnabled?: boolean;
   singleSession?: boolean;
 }
+
+export interface UpdateCurrentUserPayload {
+  name: string
+  email: string
+  phone: string
+}

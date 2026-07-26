@@ -1,6 +1,9 @@
 import apiService from "@/services/api.service";
 import type { AuthResponse, LoginCredentials } from "@/types/auth/auth.types";
-import type { User } from "@/types/user/user.types";
+import type {
+  UpdateCurrentUserPayload,
+  User,
+} from "@/types/user/user.types";
 
 class AuthService {
   async login(credentials: LoginCredentials) {
@@ -32,6 +35,11 @@ class AuthService {
   async getCurrentUser() {
     const user = await apiService.get<User>("/auth/me").catch(() => null);
     if (user) localStorage.setItem("auth_user", JSON.stringify(user));
+    return user;
+  }
+  async updateCurrentUser(payload: UpdateCurrentUserPayload) {
+    const user = await apiService.put<User>("/auth/me", payload);
+    localStorage.setItem("auth_user", JSON.stringify(user));
     return user;
   }
   getToken() {

@@ -1,7 +1,12 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { dashboardService } from "@/services/dashboard/dashboard.service";
 import { monitorService } from "@/services/monitor/monitor.service";
 import type { DashboardHome } from "@/types/dashboard/dashboard.types";
+import { MonitorAuthenticationForm } from "@/components/monitor/MonitorAuthenticationForm";
+import { monitorAuthenticationService } from "@/services/monitor-authentication/monitor-authentication.service";
+import type { MonitorAuthenticationPayload } from "@/types/monitor-authentication/monitor-authentication.types";
+import { MonitorRequestFields } from "@/components/monitor/MonitorRequestFields";
 
 const emptyDashboard: DashboardHome = {
   overallUptime: 0,
@@ -26,6 +31,9 @@ export function DashboardPage() {
     intervalSeconds: 60,
     timeoutMs: 5000,
   });
+  const [authentication, setAuthentication] = useState<MonitorAuthenticationPayload>({ authType: "none", credentials: {} });
+  const [requestBody, setRequestBody] = useState<Record<string, unknown> | undefined>();
+  const [requestHeaders, setRequestHeaders] = useState<Record<string, string> | undefined>();
 
   useEffect(() => {
     dashboardService
@@ -42,15 +50,21 @@ export function DashboardPage() {
   async function createMonitor(event: React.FormEvent) {
     event.preventDefault();
     try {
-      await monitorService.create({
+      const monitor = await monitorService.create({
         ...form,
+        body: requestBody,
+        headers: requestHeaders,
         intervalSeconds: Number(form.intervalSeconds),
         timeoutMs: Number(form.timeoutMs),
         enabled: true,
       });
+      if (authentication.authType !== "none") await monitorAuthenticationService.save(monitor.id, authentication);
       setNotice("Monitor criado com sucesso.");
       setModal(false);
       setData(await dashboardService.getHome());
+      setAuthentication({ authType: "none", credentials: {} });
+      setRequestBody(undefined);
+      setRequestHeaders(undefined);
     } catch (reason) {
       setNotice(
         reason instanceof Error
@@ -137,7 +151,7 @@ export function DashboardPage() {
               <p className="panel-kicker">Attention required</p>
               <h2>Recent incidents</h2>
             </div>
-            <span className="text-btn">View all →</span>
+            <Link className="text-btn text-link" to="/incidents">View all →</Link>
           </div>
           {dashboard.recentIncidents.length ? (
             dashboard.recentIncidents
@@ -281,6 +295,8 @@ export function DashboardPage() {
                 />
               </label>
             </div>
+            <MonitorAuthenticationForm value={authentication} onChange={setAuthentication} />
+            <MonitorRequestFields method={form.method} body={requestBody} headers={requestHeaders} onBodyChange={setRequestBody} onHeadersChange={setRequestHeaders} />
             <div className="modal-actions">
               <button
                 type="button"

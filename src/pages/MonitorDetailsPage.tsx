@@ -61,7 +61,6 @@ export function MonitorDetailsPage() {
         <div>
           <p className="eyebrow">Monitor details</p>
           <h1>Monitor history</h1>
-          <p className="hero-copy">ID: {monitorId}</p>
         </div>
       </section>
       <section className="panel resource-panel">
@@ -131,6 +130,16 @@ function ChecksTable({ checks }: { checks: MonitorCheck[] }) {
           <span className="muted">
             {new Date(check.checkedAt).toLocaleString("pt-BR")}
           </span>
+          {check.responseBody !== null && (
+            <details className="response-preview">
+              <summary>Response body</summary>
+              <pre>
+                {typeof check.responseBody === "string"
+                  ? check.responseBody
+                  : JSON.stringify(check.responseBody, null, 2)}
+              </pre>
+            </details>
+          )}
         </div>
       ))}
     </div>
@@ -155,7 +164,6 @@ function IncidentsTable({ incidents }: { incidents: Incident[] }) {
                 ? "Open incident"
                 : "Resolved incident"}
             </strong>
-            <small>{incident.id}</small>
           </span>
           <span
             className={`status ${incident.status === "open" ? "down" : "up"}`}
